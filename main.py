@@ -11,20 +11,19 @@ class IdleTimerWidget(QtWidgets.QWidget):
 
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        self.setFixedSize(300, 100)  # Bigger Size
+        self.setFixedSize(300, 100)
 
         # Label to display idle time
         self.timer_label = QtWidgets.QLabel("Idle Time: 0s", self)
         self.timer_label.setAlignment(QtCore.Qt.AlignCenter)
         self.timer_label.setStyleSheet("""
-            background: black; 
+            background: red; 
             color: white; 
             font-size: 20px; 
             font-weight: bold;
             padding: 15px; 
             border-radius: 15px;
         """)
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.timer_label)
 
@@ -32,21 +31,22 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.timer.timeout.connect(self.update_idle_timer)
         self.timer.start(1000)  # Update every second
 
-        self.show_timer()
+        self.hide()  # Start hidden
 
     def update_idle_timer(self):
-        """Update the displayed idle time every second."""
+        """ Update the displayed idle time every second. """
         idle_time = int(get_idle_time())
-        self.timer_label.setText(f"Idle Time: {idle_time}s")
 
-        # Change color if idle time exceeds 30 seconds
         if idle_time > 30:
-            self.timer_label.setStyleSheet("background: red; color: white; font-size: 20px; font-weight: bold; padding: 15px; border-radius: 15px;")
+            self.timer_label.setText(f"Idle Time: {idle_time}s")
+            self.show_timer()
+        else:
+            self.hide()  # Hide the timer if idle time ≤ 30 seconds
 
     def show_timer(self):
-        """Position the timer at the bottom-right corner of the screen."""
+        """ Position the timer at the top-right corner of the screen. """
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
-        self.move(screen_geometry.width() - 320, screen_geometry.height() - 120)  # Adjusted position
+        self.move(screen_geometry.width() - 320, 50)  # Adjusted position to top-right
         self.show()
 
 # --- Main Application Widget ---
@@ -58,6 +58,7 @@ class MyWidget(QtWidgets.QWidget):
         self.idle_timer_widget = IdleTimerWidget()
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
 
+        # Layout for battery at the bottom right
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.camera_widget)
         layout.addWidget(self.battery_label)

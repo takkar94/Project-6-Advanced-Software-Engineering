@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
+import time
 from PySide6 import QtCore, QtWidgets, QtGui
 
 class CameraThread(QtCore.QThread):
     """ Separate thread for capturing frames from OpenCV to avoid GUI lag. """
     frame_signal = QtCore.Signal(QtGui.QImage)
+    alert_signal = QtCore.Signal(str)  # Signal for alert messages
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -19,6 +21,10 @@ class CameraThread(QtCore.QThread):
 
         self.frame_count = 0  # Track frames for YOLO processing
         self.last_detections = []  # Cache last detections
+
+        # Person detection tracking
+        self.person_timestamps = {}  # Dictionary to track detection times
+        self.second_person_start_time = None  # When second person appears
 
     def run(self):
         """ Capture frames, detect objects (every N frames), and emit processed images. """
@@ -51,14 +57,27 @@ class CameraThread(QtCore.QThread):
                             boxes.append([x1, y1, w, h])
                             confidences.append(float(confidence))
 
-                # Apply Non-Maximum Suppression (NMS) safely
+                # Apply Non-Maximum Suppression (NMS)
                 indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.5, nms_threshold=0.4)
                 if isinstance(indices, tuple) or len(indices) == 0:  
                     self.last_detections = []  # No detections found
                 else:
-                    self.last_detections = [boxes[i] for i in indices.flatten()]  # Fix indexing
+                    self.last_detections = [boxes[i] for i in indices.flatten()]  # Store only one bounding box per person
 
             self.frame_count += 1
+
+            # Check for second person alert
+            person_count = len(self.last_detections)
+            current_time = time.time()
+
+            if person_count >= 2:
+                if self.second_person_start_time is None:
+                    self.second_person_start_time = current_time  # Start timer when second person appears
+                elif current_time - self.second_person_start_time >= 10:
+                    self.alert_signal.emit("⚠️ Second person detected for over 10 seconds!")  # Trigger alert
+                    self.second_person_start_time = None  # Reset timer after alert
+            else:
+                self.second_person_start_time = None  # Reset if no second person
 
             # Draw bounding boxes from the last processed frame
             for (x1, y1, w, h) in self.last_detections:
@@ -94,11 +113,16 @@ class CameraWidget(QtWidgets.QWidget):
         # Start camera thread
         self.camera_thread = CameraThread()
         self.camera_thread.frame_signal.connect(self.update_frame)
+        self.camera_thread.alert_signal.connect(self.show_alert)  # Connect alert signal
         self.camera_thread.start()
 
     def update_frame(self, image):
         """ Update QLabel with the latest camera frame. """
         self.video_label.setPixmap(QtGui.QPixmap.fromImage(image))
+
+    def show_alert(self, message):
+        """ Display an alert message box. """
+        QtWidgets.QMessageBox.warning(self, "Alert", message)
 
     def closeEvent(self, event):
         """ Ensure the camera thread is stopped when closing. """
