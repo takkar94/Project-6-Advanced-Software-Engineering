@@ -1,4 +1,5 @@
 import sys
+import subprocess
 from PySide6 import QtCore, QtWidgets, QtGui
 from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
@@ -54,14 +55,19 @@ class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
-        self.camera_widget = CameraWidget(self)
+        # self.camera_widget = CameraWidget(self)
         self.idle_timer_widget = IdleTimerWidget()
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
 
-        # Layout for battery at the bottom right
+        # Button to trigger notification
+        self.notify_button = QtWidgets.QPushButton("Show Notification")
+        self.notify_button.clicked.connect(self.show_notification)
+
+        # Layout for widgets
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.camera_widget)
+        # layout.addWidget(self.camera_widget)
         layout.addWidget(self.battery_label)
+        layout.addWidget(self.notify_button)
 
         self.battery_timer = QtCore.QTimer(self)
         self.battery_timer.timeout.connect(self.update_battery_status)
@@ -72,6 +78,10 @@ class MyWidget(QtWidgets.QWidget):
         status_message, _ = get_battery_status()
         percentage = status_message.split(":")[1].split("%")[0].strip()
         self.battery_label.setText(f"🔋 Battery: {percentage}%")
+
+    def show_notification(self):
+        """Runs the notification script when the button is clicked."""
+        subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])  # Run Tkinter notification
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
