@@ -6,6 +6,7 @@ from modules.idle_tracker import get_idle_time
 from modules.camera_feed import CameraWidget
 from modules.nasa_tlx import TLXForm
 from modules.tlx_stats import TLXStatsWidget  # ✅ Live stats
+from modules.tlx_logger import save_tlx_result
 
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
@@ -91,6 +92,8 @@ class MyWidget(QtWidgets.QWidget):
         form = TLXForm()
         if form.exec() == QtWidgets.QDialog.Accepted:
             result = form.get_results()
+            save_tlx_result(result)
+            self.tlx_stats.refresh_stats()
 
             file_exists = os.path.isfile("tlx_results.csv")
             with open("tlx_results.csv", "a") as f:
