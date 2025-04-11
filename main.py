@@ -1,5 +1,4 @@
 import sys
-import os
 from PySide6 import QtCore, QtWidgets, QtGui
 from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
@@ -53,20 +52,15 @@ class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
-        self.camera_widget = CameraWidget(self)
+        # self.camera_widget = CameraWidget(self)
         self.idle_timer_widget = IdleTimerWidget()
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
 
-        # Layout setup
+        # Layout for battery at the bottom right
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.camera_widget)
-
-        # ✅ Add TLX button
-        self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
-        self.tlx_button.clicked.connect(self.prompt_tlx)
-        layout.addWidget(self.tlx_button)
-
         layout.addWidget(self.battery_label)
+        layout.addWidget(self.notify_button)
 
         # Battery status tracking
         self.battery_timer = QtCore.QTimer(self)
@@ -85,23 +79,6 @@ class MyWidget(QtWidgets.QWidget):
         percentage, is_plugged_in = get_battery_status()
         self.battery_label.setText(f"🔋 Battery: {percentage}%")
 
-        if not is_plugged_in and self.was_plugged_in:
-            QtWidgets.QMessageBox.warning(self, "⚠️ Power Alert", "Device is not charging!")
-        self.was_plugged_in = is_plugged_in
-
-    def prompt_tlx(self):
-        form = TLXForm()
-        if form.exec() == QtWidgets.QDialog.Accepted:
-            result = form.get_results()
-
-            # ✅ Log TLX results
-            file_exists = os.path.isfile("tlx_results.csv")
-            with open("tlx_results.csv", "a") as f:
-                if not file_exists:
-                    f.write("Mental,Physical,Temporal,Performance,Effort,Frustration\n")
-                f.write(",".join(str(result[key]) for key in result) + "\n")
-
-# --- Run App ---
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
     widget = MyWidget()
