@@ -1,11 +1,15 @@
+from PySide6.QtCore import QObject, Signal
 import time
 import csv
 import os
 from datetime import datetime
-import win32gui  # Requires pywin32
+import win32gui
 
-class AppTracker:
+class AppTracker(QObject):
+    app_switched = Signal()  # ✅ Signal to notify app change
+
     def __init__(self, log_file="app_usage_log.csv"):
+        super().__init__()
         self.log_file = log_file
         self.current_app = None
         self.start_time = datetime.now()
@@ -40,3 +44,5 @@ class AppTracker:
 
             self.current_app = active_app
             self.start_time = now
+
+            self.app_switched.emit()  # ✅ Trigger signal when app changes
