@@ -5,7 +5,8 @@ from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
 from modules.camera_feed import CameraWidget
 from modules.nasa_tlx import TLXForm
-from modules.tlx_stats import TLXStatsWidget  # 📊 Live TLX stats
+from modules.tlx_stats import TLXStatsWidget
+from modules.app_tracker import AppTracker  # ✅ New import
 
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
@@ -46,7 +47,6 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
-
 # --- Main Application Widget ---
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
@@ -58,7 +58,7 @@ class MyWidget(QtWidgets.QWidget):
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
         self.tlx_button.clicked.connect(self.prompt_tlx)
-        self.tlx_stats = TLXStatsWidget()  # 📊 Live TLX stats panel
+        self.tlx_stats = TLXStatsWidget()
 
         # Layout
         layout = QtWidgets.QVBoxLayout(self)
@@ -67,17 +67,23 @@ class MyWidget(QtWidgets.QWidget):
         layout.addWidget(self.battery_label)
         layout.addWidget(self.tlx_stats)
 
-        # Battery timer
+        # Battery updates
         self.battery_timer = QtCore.QTimer(self)
         self.battery_timer.timeout.connect(self.update_battery_status)
         self.battery_timer.start(3000)
 
         self.was_plugged_in = True
 
-        # TLX auto popup every hour
+        # TLX auto-popup every hour
         self.tlx_timer = QtCore.QTimer(self)
         self.tlx_timer.timeout.connect(self.prompt_tlx)
-        self.tlx_timer.start(60 * 60 * 1000)  # every 1 hour
+        self.tlx_timer.start(60 * 60 * 1000)
+
+        # ✅ App usage tracker
+        self.app_tracker = AppTracker()
+        self.app_tracking_timer = QtCore.QTimer(self)
+        self.app_tracking_timer.timeout.connect(self.app_tracker.update)
+        self.app_tracking_timer.start(2000)  # every 2 seconds
 
     @QtCore.Slot()
     def update_battery_status(self):
@@ -93,7 +99,6 @@ class MyWidget(QtWidgets.QWidget):
         if form.exec() == QtWidgets.QDialog.Accepted:
             result = form.get_results()
 
-            # Save to CSV
             file_exists = os.path.isfile("tlx_results.csv")
             with open("tlx_results.csv", "a", newline='') as f:
                 headers = ["Mental", "Physical", "Temporal", "Performance", "Effort", "Frustration"]
@@ -103,9 +108,7 @@ class MyWidget(QtWidgets.QWidget):
                     writer.writeheader()
                 writer.writerow({key: result.get(key, "") for key in headers})
 
-            # Refresh live stats
             self.tlx_stats.refresh_stats()
-
 
 # --- Run App ---
 if __name__ == "__main__":
