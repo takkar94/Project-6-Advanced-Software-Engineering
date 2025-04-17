@@ -19,7 +19,7 @@ for user in users:
             INSERT INTO users (name, email, password_hash, role)
             VALUES (?, ?, ?, ?)
         """, (user["name"], user["email"], password_hash, user["role"]))
-        print(f"✅ Added user: {user['name']} ({user['role']})")
+        print(f"Added user: {user['name']} ({user['role']})")
     except sqlite3.IntegrityError:
         print(f"⚠️ User already exists: {user['email']}")
 
