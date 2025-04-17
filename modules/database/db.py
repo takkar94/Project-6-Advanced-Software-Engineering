@@ -1,7 +1,9 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "tlx_app.db")
+#Define proper database folder and path
+DB_FOLDER = os.path.dirname(__file__)
+DB_PATH = os.path.join(DB_FOLDER, "tlx_app.db")
 
 def get_db_path():
     return DB_PATH
@@ -11,7 +13,7 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Users table
+    # --- Users table ---
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +24,7 @@ def init_db():
         )
     """)
 
-    # TLX entries table
+    # --- TLX Entries table ---
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tlx_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +40,7 @@ def init_db():
         )
     """)
 
-    # App usage table
+    # --- App Usage table ---
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS app_usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

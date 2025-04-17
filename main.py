@@ -1,6 +1,8 @@
 import sys
 import os
 from PySide6 import QtCore, QtWidgets
+from modules.login import LoginDialog
+from modules.database.db import init_db
 from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
 from modules.camera_feed import CameraWidget
@@ -50,8 +52,10 @@ class IdleTimerWidget(QtWidgets.QWidget):
 
 # --- Main Application Widget ---
 class MyWidget(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, user):
         super().__init__()
+        self.user = user  # Store logged-in user info
+        self.user_id = user["id"]
 
         # --- Widgets ---
         self.camera_widget = CameraWidget(self)
@@ -144,10 +148,22 @@ class MyWidget(QtWidgets.QWidget):
 
             self.tlx_stats.refresh_stats()
 
-# --- Run App ---
+# --- App Entry Point ---
 if __name__ == "__main__":
+    init_db()
+
     app = QtWidgets.QApplication([])
-    widget = MyWidget()
-    widget.resize(1280, 720)
-    widget.show()
-    sys.exit(app.exec())
+
+    login = LoginDialog()
+    if login.exec() == QtWidgets.QDialog.Accepted:
+        user = login.get_user_info()
+        print(f"✅ Logged in as {user['name']} ({user['role']})")
+
+        widget = MyWidget(user)
+        widget.resize(1280, 720)
+        widget.show()
+
+        sys.exit(app.exec())
+    else:
+        print("❌ Login cancelled.")
+        sys.exit()
