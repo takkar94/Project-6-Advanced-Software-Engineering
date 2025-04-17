@@ -10,6 +10,7 @@ from modules.nasa_tlx import TLXForm
 from modules.tlx_stats import TLXStatsWidget
 from modules.app_tracker import AppTracker
 from modules.app_usage_summary import AppUsageSummary
+from modules.frustration_skill import FrustrationDistractionDialog  # ✅ NEW
 
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
@@ -54,10 +55,9 @@ class IdleTimerWidget(QtWidgets.QWidget):
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
-        self.user = user  # Store logged-in user info
+        self.user = user
         self.user_id = user["id"]
 
-        # --- Widgets ---
         self.camera_widget = CameraWidget(self)
         self.idle_timer_widget = IdleTimerWidget()
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
@@ -81,16 +81,15 @@ class MyWidget(QtWidgets.QWidget):
         self.tlx_stats = TLXStatsWidget()
         self.app_usage_summary = AppUsageSummary()
 
-        # --- Layout Setup ---
+        # Layout
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        # Left panel (camera)
+        # Left: Camera
         left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(self.camera_widget)
 
-        # Right panel (battery, TLX button, stats)
+        # Right: Battery, TLX, Stats
         right_layout = QtWidgets.QVBoxLayout()
-
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
         battery_layout.addWidget(self.battery_label)
@@ -105,19 +104,19 @@ class MyWidget(QtWidgets.QWidget):
         main_layout.addLayout(left_layout, stretch=2)
         main_layout.addLayout(right_layout, stretch=1)
 
-        # --- Battery Timer ---
+        # Battery timer
         self.battery_timer = QtCore.QTimer(self)
         self.battery_timer.timeout.connect(self.update_battery_status)
         self.battery_timer.start(3000)
 
         self.was_plugged_in = True
 
-        # --- NASA TLX Auto Prompt Timer ---
+        # TLX auto timer
         self.tlx_timer = QtCore.QTimer(self)
         self.tlx_timer.timeout.connect(self.prompt_tlx)
         self.tlx_timer.start(60 * 60 * 1000)
 
-        # --- App Usage Tracker ---
+        # App usage tracker
         self.app_tracker = AppTracker()
         self.app_tracking_timer = QtCore.QTimer(self)
         self.app_tracking_timer.timeout.connect(self.app_tracker.update)
@@ -137,6 +136,12 @@ class MyWidget(QtWidgets.QWidget):
         if form.exec() == QtWidgets.QDialog.Accepted:
             result = form.get_results()
 
+            # Optional: Trigger Frustration Distraction Skill
+            if result.get("Frustration", 0) >= 70:
+                dialog = FrustrationDistractionDialog()
+                dialog.exec()
+
+            # Save to CSV (you can change this to DB)
             file_exists = os.path.isfile("tlx_results.csv")
             with open("tlx_results.csv", "a", newline='') as f:
                 headers = ["Mental", "Physical", "Temporal", "Performance", "Effort", "Frustration"]
@@ -148,21 +153,18 @@ class MyWidget(QtWidgets.QWidget):
 
             self.tlx_stats.refresh_stats()
 
-# --- App Entry Point ---
+# --- Entry Point ---
 if __name__ == "__main__":
     init_db()
-
     app = QtWidgets.QApplication([])
 
     login = LoginDialog()
     if login.exec() == QtWidgets.QDialog.Accepted:
         user = login.get_user_info()
         print(f"✅ Logged in as {user['name']} ({user['role']})")
-
         widget = MyWidget(user)
         widget.resize(1280, 720)
         widget.show()
-
         sys.exit(app.exec())
     else:
         print("❌ Login cancelled.")
