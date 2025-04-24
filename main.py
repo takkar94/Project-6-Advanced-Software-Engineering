@@ -11,6 +11,7 @@ from modules.tlx_stats import TLXStatsWidget
 from modules.app_tracker import AppTracker
 from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog  # ✅ NEW
+import subprocess
 
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
@@ -78,6 +79,8 @@ class MyWidget(QtWidgets.QWidget):
             }
         """)
 
+        self.notify_button = QtWidgets.QPushButton("show notification")
+        self.notify_button.clicked.connect(self.show_notification)
         self.tlx_stats = TLXStatsWidget()
         self.app_usage_summary = AppUsageSummary()
 
@@ -87,6 +90,7 @@ class MyWidget(QtWidgets.QWidget):
         # Left: Camera
         left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(self.camera_widget)
+        left_layout.addWidget(self.notify_button)
 
         # Right: Battery, TLX, Stats
         right_layout = QtWidgets.QVBoxLayout()
@@ -152,6 +156,8 @@ class MyWidget(QtWidgets.QWidget):
                 writer.writerow({key: result.get(key, "") for key in headers})
 
             self.tlx_stats.refresh_stats()
+    def show_notification(self):
+        subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])
 
 # --- Entry Point ---
 if __name__ == "__main__":
