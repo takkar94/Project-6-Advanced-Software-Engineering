@@ -14,8 +14,9 @@ from modules.frustration_skill import FrustrationDistractionDialog
 
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.main_window = parent
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setFixedSize(300, 100)
@@ -46,11 +47,14 @@ class IdleTimerWidget(QtWidgets.QWidget):
         else:
             self.hide()
 
+        # Manager detection logic
+        if self.main_window.second_person_behind_detected and idle_time >= 15 and not self.main_window.manager_prompt_shown:
+            self.main_window.ask_is_manager_there()
+
     def show_timer(self):
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
         self.move(screen_geometry.width() - 320, 50)
         self.show()
-
 
 # --- Main Application Widget ---
 class MyWidget(QtWidgets.QWidget):
@@ -61,8 +65,11 @@ class MyWidget(QtWidgets.QWidget):
         self.user = user
         self.user_id = user["id"]
 
+        self.second_person_behind_detected = False
+        self.manager_prompt_shown = False
+
         self.camera_widget = CameraWidget(self)
-        self.idle_timer_widget = IdleTimerWidget()
+        self.idle_timer_widget = IdleTimerWidget(self)
         self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
 
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
@@ -81,7 +88,7 @@ class MyWidget(QtWidgets.QWidget):
             }
         """)
 
-        self.notify_button = QtWidgets.QPushButton("show notification")
+        self.notify_button = QtWidgets.QPushButton("Show Notification")
         self.notify_button.clicked.connect(self.show_notification)
 
         self.tlx_stats = TLXStatsWidget()
@@ -90,12 +97,12 @@ class MyWidget(QtWidgets.QWidget):
         # Layout
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        # Left
+        # Left Layout
         left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(self.camera_widget)
         left_layout.addWidget(self.notify_button)
 
-        # Right
+        # Right Layout
         right_layout = QtWidgets.QVBoxLayout()
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
@@ -146,28 +153,42 @@ class MyWidget(QtWidgets.QWidget):
             result = form.get_results()
             print("🧪 TLX Form Results:", result)
 
-            # Optional: Trigger Frustration Distraction Dialog
+            # Trigger Frustration Distraction Dialog if needed
             if result.get("Frustration", 0) >= 70 or result.get("frustration", 0) >= 70:
                 dialog = FrustrationDistractionDialog()
                 dialog.exec()
 
-            # Save TLX to Database
             save_tlx_result_to_db(result, self.user_id)
-
-            # Refresh Stats
             self.tlx_stats.refresh_stats()
 
     def show_notification(self):
         print("📢 Show notification clicked.")
-        # subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])  # Temporarily disabled
+        # subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])  # Optional notification
 
+    def ask_is_manager_there(self):
+        msg_box = QtWidgets.QMessageBox(self)
+        msg_box.setWindowTitle("Supervisor Check")
+        msg_box.setText("👨‍💼 Is the manager there?")
+        msg_box.setIcon(QtWidgets.QMessageBox.Question)
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        response = msg_box.exec()
 
-# ✅ Helper Function to Save TLX Result to DB
+        if response == QtWidgets.QMessageBox.Yes:
+            print("✅ Manager confirmed present.")
+        else:
+            print("❌ Manager not present.")
+
+        self.manager_prompt_shown = True
+        self.second_person_behind_detected = False
+
+# --- Helper Function to Save TLX to DB ---
 def save_tlx_result_to_db(result: dict, user_id: int):
     try:
         import sqlite3
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
-        # Safe fetching from result
         mental = result.get("Mental") or result.get("mental", 0)
         physical = result.get("Physical") or result.get("physical", 0)
         temporal = result.get("Temporal") or result.get("temporal", 0)
@@ -175,21 +196,11 @@ def save_tlx_result_to_db(result: dict, user_id: int):
         effort = result.get("Effort") or result.get("effort", 0)
         frustration = result.get("Frustration") or result.get("frustration", 0)
 
-        db_path = get_db_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
         cursor.execute('''
             INSERT INTO tlx_entries (user_id, mental, physical, temporal, performance, effort, frustration)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
-            user_id,
-            mental,
-            physical,
-            temporal,
-            performance,
-            effort,
-            frustration
+            user_id, mental, physical, temporal, performance, effort, frustration
         ))
 
         conn.commit()
@@ -197,7 +208,6 @@ def save_tlx_result_to_db(result: dict, user_id: int):
         print("✅ TLX result successfully saved to database.")
     except Exception as e:
         print(f"❌ Failed to save TLX result to database: {e}")
-
 
 # --- Entry Point ---
 if __name__ == "__main__":
