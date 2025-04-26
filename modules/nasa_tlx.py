@@ -48,5 +48,17 @@ class TLXForm(QtWidgets.QDialog):
         self.submit_btn.clicked.connect(self.accept)
         layout.addWidget(self.submit_btn)
 
+    # def get_results(self):
+    #     return {key: slider.value() for key, slider in self.fields.items()}
+
     def get_results(self):
-        return {key: slider.value() for key, slider in self.fields.items()}
+        raw_results = {key: slider.value() for key, slider in self.fields.items()}
+        mapped_results = {
+            "Mental": raw_results.get("Mental Demand", 0),
+            "Physical": raw_results.get("Physical Demand", 0),
+            "Temporal": raw_results.get("Temporal Demand", 0),
+            "Performance": raw_results.get("Performance", 0),
+            "Effort": raw_results.get("Effort", 0),
+            "Frustration": raw_results.get("Frustration", 0)
+        }
+        return mapped_results

@@ -1,57 +1,44 @@
-from PySide6 import QtWidgets
-import csv
-import os
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+import sqlite3
+from modules.database.db import get_db_path
 
-class TLXStatsWidget(QtWidgets.QWidget):
+class TLXStatsWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(150)
-        self.setStyleSheet("font-size: 14px; padding: 10px;")
-        
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.label = QtWidgets.QLabel("📊 TLX stats will show here.")
-        self.layout.addWidget(self.label)
-
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
         self.refresh_stats()
 
     def refresh_stats(self):
-        if not os.path.exists("tlx_results.csv"):
-            self.label.setText("📊 No TLX data yet.")
-            return
-
-        with open("tlx_results.csv", newline='') as f:
-            reader = csv.reader(f)
-            try:
-                headers = next(reader)
-            except StopIteration:
-                self.label.setText("📊 TLX file is empty.")
-                return
-
-            rows = list(reader)
-
-        if not rows:
-            self.label.setText("📊 No TLX entries.")
-            return
+        # Clear old widgets
+        for i in reversed(range(self.layout.count())):
+            self.layout.itemAt(i).widget().setParent(None)
 
         try:
-            totals = [0] * len(headers)
-            counts = [0] * len(headers)
+            conn = sqlite3.connect(get_db_path())
+            cursor = conn.cursor()
 
-            for row in rows:
-                for i, val in enumerate(row):
-                    try:
-                        value = int(val)
-                        totals[i] += value
-                        counts[i] += 1
-                    except (ValueError, TypeError):
-                        continue  # Skip empty or invalid values
+            # Get latest 5 entries
+            cursor.execute("""
+                SELECT mental, physical, temporal, performance, effort, frustration, timestamp
+                FROM tlx_entries
+                ORDER BY timestamp DESC
+                LIMIT 5
+            """)
+            rows = cursor.fetchall()
+            conn.close()
 
-            averages = [
-                round(totals[i] / counts[i], 2) if counts[i] > 0 else 0
-                for i in range(len(headers))
-            ]
+            if rows:
+                for row in rows:
+                    mental, physical, temporal, performance, effort, frustration, timestamp = row
+                    summary = (
+                        f"🧠 Mental: {mental} | 💪 Physical: {physical} | ⏱ Temporal: {temporal} | "
+                        f"🎯 Performance: {performance} | 🔧 Effort: {effort} | 😖 Frustration: {frustration} | 🕒 {timestamp}"
+                    )
+                    label = QLabel(summary)
+                    self.layout.addWidget(label)
+            else:
+                self.layout.addWidget(QLabel("No TLX data yet."))
 
-            display = "\n".join(f"{headers[i]}: {averages[i]}" for i in range(len(headers)))
-            self.label.setText(f"📈 TLX Averages:\n{display}")
         except Exception as e:
-            self.label.setText(f"❌ Error reading TLX: {e}")
+            self.layout.addWidget(QLabel(f"Error loading TLX data: {e}"))
