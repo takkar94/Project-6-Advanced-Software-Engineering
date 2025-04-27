@@ -6,7 +6,7 @@ import sqlite3
 from modules.database.db import get_db_path
 
 class AppTracker(QObject):
-    app_switched = Signal()  # ✅ Signal to notify app change
+    app_switched = Signal()  # this is to signal to 
 
     def __init__(self, user_id):
         super().__init__()

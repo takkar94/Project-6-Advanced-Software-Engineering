@@ -1,3 +1,5 @@
+#Employee Task and Workload Management Application 
+
 import sys
 import os
 from PySide6 import QtCore, QtWidgets
@@ -16,7 +18,7 @@ from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 from modules.system_usability_skill import SystemUsabilityDialog
 
-# --- Manager Conversation Popup ---
+# this is a popup for the manager interruption
 class ManagerConversationPopup(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -103,7 +105,7 @@ class TaskSummaryViewer(QtWidgets.QDialog):
                 return user_id
         return None
 
-# --- Idle Timer Widget ---
+# This is for when the screen remains idle
 class IdleTimerWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -150,7 +152,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
-# --- Main Application Widget ---
+# This is the main GUI widget 
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
