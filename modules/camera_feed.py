@@ -1,8 +1,6 @@
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtGui import QImage, QPixmap
 import cv2
-import os
-import threading
 import time
 
 class CameraThread(QtCore.QThread):
@@ -14,33 +12,31 @@ class CameraThread(QtCore.QThread):
         self.running = False
         self.second_person_start_time = None
 
-        # --- Load YOLOv3 Model (with dynamic paths) ---
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        yolo_folder = os.path.join(base_dir, "..", "assets", "yolo")
-
-        cfg_path = os.path.join(yolo_folder, "yolov3.cfg")
-        weights_path = os.path.join(yolo_folder, "yolov3.weights")
-        names_path = os.path.join(yolo_folder, "coco.names")
-
-        self.net = cv2.dnn.readNetFromDarknet(cfg_path, weights_path)
+        # Load YOLO model
+        self.net = cv2.dnn.readNetFromDarknet(
+            "assets/yolo/yolov3.cfg",
+            "assets/yolo/yolov3.weights"
+        )
         self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
         self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
-        with open(names_path, "r") as f:
+        with open("assets/yolo/coco.names", "r") as f:
             self.classes = [line.strip() for line in f.readlines()]
 
         self.output_layers = self.net.getUnconnectedOutLayersNames()
 
     def run(self):
         self.running = True
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # ✅ Use DirectShow instead of MSMF
+
+        if not cap.isOpened():
+            print("❌ Error: Unable to open camera.")
+            return
 
         while self.running:
             ret, frame = cap.read()
             if ret:
                 person_count = self.detect_people(frame)
-
-                # Update GUI frame
                 self.frame_update.emit(frame)
 
                 current_time = time.time()
@@ -87,6 +83,7 @@ class CameraWidget(QtWidgets.QLabel):
         super().__init__(parent)
         self.setFixedSize(640, 480)
         self.setStyleSheet("background-color: black;")
+
         self.camera_thread = CameraThread(self)
         self.camera_thread.frame_update.connect(self.update_frame)
         self.camera_thread.alert_signal.connect(self.show_alert)
@@ -102,7 +99,7 @@ class CameraWidget(QtWidgets.QLabel):
     def show_alert(self, message):
         if message == "SECOND_PERSON_PRESENT":
             self.parent().second_person_behind_detected = True
-            print("⚡ Second person detected, flag set!")
+            print("Second person detected.")
         else:
             QtWidgets.QMessageBox.warning(self, "Alert", message)
 
