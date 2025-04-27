@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-#Define proper database folder and path
+# Define proper database folder and path
 DB_FOLDER = os.path.dirname(__file__)
 DB_PATH = os.path.join(DB_FOLDER, "tlx_app.db")
 
@@ -54,5 +54,58 @@ def init_db():
         )
     """)
 
+    # --- Usability Feedback table ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usability_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            usability_score INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
+
+def save_tlx_result_to_db(result: dict, user_id: int):
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO tlx_entries (user_id, mental, physical, temporal, performance, effort, frustration)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_id,
+            result.get("Mental", 0),
+            result.get("Physical", 0),
+            result.get("Temporal", 0),
+            result.get("Performance", 0),
+            result.get("Effort", 0),
+            result.get("Frustration", 0)
+        ))
+
+        conn.commit()
+        conn.close()
+        print("TLX result saved to database.")
+    except Exception as e:
+        print(f"Failed to save TLX result to database: {e}")
+
+def save_usability_feedback(user_id: int, score: int):
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO usability_feedback (user_id, usability_score)
+            VALUES (?, ?)
+        ''', (user_id, score))
+
+        conn.commit()
+        conn.close()
+        print(f"Usability feedback saved: {score}/10")
+    except Exception as e:
+        print(f"Failed to save usability feedback: {e}")

@@ -2,7 +2,7 @@ import sys
 import os
 from PySide6 import QtCore, QtWidgets
 from modules.login import LoginDialog
-from modules.database.db import init_db, get_db_path
+from modules.database.db import init_db, get_db_path, save_tlx_result_to_db, save_usability_feedback
 from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
 from modules.camera_feed import CameraWidget
@@ -11,6 +11,7 @@ from modules.tlx_stats import TLXStatsWidget
 from modules.app_tracker import AppTracker
 from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
+from modules.system_usability_skill import SystemUsabilityDialog
 
 # --- Manager Conversation Popup ---
 class ManagerConversationPopup(QtWidgets.QDialog):
@@ -81,7 +82,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
         if popup.exec() == QtWidgets.QDialog.Accepted:
             print("User indicated they are talking to the manager.")
         else:
-            print("User indicated they are NOT talking to the manager.")
+            print("User indicated they are not talking to the manager.")
 
     def show_timer(self):
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
@@ -105,18 +106,6 @@ class MyWidget(QtWidgets.QWidget):
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
         self.tlx_button.clicked.connect(self.prompt_tlx)
         self.tlx_button.setFixedWidth(180)
-        self.tlx_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007acc;
-                color: white;
-                font-weight: bold;
-                padding: 8px 16px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #005f99;
-            }
-        """)
 
         self.notify_button = QtWidgets.QPushButton("Show Notification")
         self.notify_button.clicked.connect(self.show_notification)
@@ -127,22 +116,37 @@ class MyWidget(QtWidgets.QWidget):
         # Layout
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        # Left
+        # Group Boxes
+        self.camera_group = QtWidgets.QGroupBox("Camera Feed")
+        camera_layout = QtWidgets.QVBoxLayout()
+        camera_layout.addWidget(self.camera_widget)
+        self.camera_group.setLayout(camera_layout)
+
+        self.app_usage_group = QtWidgets.QGroupBox("Application Usage Summary")
+        app_usage_layout = QtWidgets.QVBoxLayout()
+        app_usage_layout.addWidget(self.app_usage_summary)
+        self.app_usage_group.setLayout(app_usage_layout)
+
+        self.tlx_stats_group = QtWidgets.QGroupBox("NASA TLX Statistics")
+        tlx_layout = QtWidgets.QVBoxLayout()
+        tlx_layout.addWidget(self.tlx_stats)
+        self.tlx_stats_group.setLayout(tlx_layout)
+
+        # Left Layout
         left_layout = QtWidgets.QVBoxLayout()
-        left_layout.addWidget(self.camera_widget)
+        left_layout.addWidget(self.camera_group)
         left_layout.addWidget(self.notify_button)
 
-        # Right
+        # Right Layout
         right_layout = QtWidgets.QVBoxLayout()
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
         battery_layout.addWidget(self.battery_label)
 
         right_layout.addLayout(battery_layout)
-        right_layout.addWidget(self.tlx_button, alignment=QtCore.Qt.AlignLeft)
-        right_layout.addSpacing(10)
-        right_layout.addWidget(self.tlx_stats)
-        right_layout.addWidget(self.app_usage_summary)
+        right_layout.addWidget(self.tlx_button)
+        right_layout.addWidget(self.tlx_stats_group)
+        right_layout.addWidget(self.app_usage_group)
         right_layout.addStretch()
 
         main_layout.addLayout(left_layout, stretch=2)
@@ -173,7 +177,7 @@ class MyWidget(QtWidgets.QWidget):
         percentage, is_plugged_in = get_battery_status()
         self.battery_label.setText(f"Battery: {percentage}%")
         if not is_plugged_in and self.was_plugged_in:
-            QtWidgets.QMessageBox.warning(self, "Power Alert", "Device is not charging!")
+            QtWidgets.QMessageBox.warning(self, "Power Alert", "Device is not charging.")
         self.was_plugged_in = is_plugged_in
 
     def prompt_tlx(self):
@@ -187,10 +191,13 @@ class MyWidget(QtWidgets.QWidget):
                 dialog = FrustrationDistractionDialog()
                 dialog.exec()
 
-            from modules.database.db import save_tlx_result_to_db
             save_tlx_result_to_db(result, self.user_id)
-
             self.tlx_stats.refresh_stats()
+
+            usability_dialog = SystemUsabilityDialog()
+            if usability_dialog.exec() == QtWidgets.QDialog.Accepted:
+                usability_score = usability_dialog.get_score()
+                save_usability_feedback(self.user_id, usability_score)
 
     def show_notification(self):
         QtWidgets.QMessageBox.information(self, "Notification", "Test Notification Triggered.")
@@ -203,6 +210,14 @@ if __name__ == "__main__":
         print("Database initialized.")
 
         app = QtWidgets.QApplication([])
+
+        # Load external stylesheet from assets/css/style.qss
+        style_path = os.path.join(os.path.dirname(__file__), "assets", "css", "style.qss")
+        if os.path.exists(style_path):
+            with open(style_path, "r") as f:
+                app.setStyleSheet(f.read())
+        else:
+            print("Warning: style.qss not found!")
 
         login = LoginDialog()
         print("Launching login dialog...")
