@@ -1,49 +1,82 @@
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
+
+class BreathingCircle(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(200, 200)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.radius = 50
+        self.growing = True
+
+        # Create a timer inside the circle itself
+        self.animation_timer = QtCore.QTimer(self)
+        self.animation_timer.timeout.connect(self.animate)
+        self.animation_timer.start(50)  # 20 frames per second
+
+    def animate(self):
+        if self.growing:
+            self.radius += 1
+            if self.radius >= 100:
+                self.growing = False
+        else:
+            self.radius -= 1
+            if self.radius <= 50:
+                self.growing = True
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+
+        rect = self.rect()
+        center = rect.center()
+
+        # Fill background
+        painter.fillRect(rect, QtGui.QColor("#ffffff"))
+
+        # Draw circle
+        pen = QtGui.QPen(QtGui.QColor("#5dade2"))
+        pen.setWidth(5)
+        painter.setPen(pen)
+        painter.setBrush(QtGui.QBrush(QtGui.QColor("#aed6f1")))
+        painter.drawEllipse(center, self.radius, self.radius)
 
 class FrustrationDistractionDialog(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🧘 Frustration Distraction")
-        self.setFixedSize(400, 250)
+        self.setWindowTitle("Breathe and Refocus 🌿")
+        self.setMinimumSize(400, 500)
 
-        # Main layout
         layout = QtWidgets.QVBoxLayout(self)
 
-        # Inspirational message
-        self.quote_label = QtWidgets.QLabel("“Breathe. You're doing just fine.”")
-        self.quote_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.quote_label.setStyleSheet("""
-            font-size: 16px;
-            font-style: italic;
-            color: #444;
-        """)
+        self.label = QtWidgets.QLabel(
+            "Let's take a few deep breaths...\n\n"
+            "Follow the expanding and contracting circle."
+        )
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setWordWrap(True)
+        self.label.setStyleSheet("font-size: 16px;")
 
-        # Countdown before activation
-        self.timer_label = QtWidgets.QLabel("Ready in 5 seconds...")
-        self.timer_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.timer_label.setStyleSheet("font-size: 14px; color: #666;")
+        self.breathing_circle = BreathingCircle()
 
-        # Completion button
-        self.done_button = QtWidgets.QPushButton("✅ I'm ready to refocus")
-        self.done_button.setEnabled(False)
-        self.done_button.clicked.connect(self.accept)
+        self.refocus_button = QtWidgets.QPushButton("✅ I'm Ready to Refocus")
+        self.refocus_button.setEnabled(False)
+        self.refocus_button.clicked.connect(self.accept)
 
+        layout.addWidget(self.label)
         layout.addStretch()
-        layout.addWidget(self.quote_label)
-        layout.addWidget(self.timer_label)
-        layout.addWidget(self.done_button)
+        layout.addWidget(self.breathing_circle, alignment=QtCore.Qt.AlignCenter)
         layout.addStretch()
+        layout.addWidget(self.refocus_button)
 
-        self.seconds_left = 5
-        self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self.update_timer)
-        self.timer.start(1000)
+        # Unlock refocus button after 30 seconds
+        self.unlock_timer = QtCore.QTimer(self)
+        self.unlock_timer.setSingleShot(True)
+        self.unlock_timer.timeout.connect(self.enable_refocus_button)
+        self.unlock_timer.start(30000)
 
-    def update_timer(self):
-        self.seconds_left -= 1
-        if self.seconds_left <= 0:
-            self.timer.stop()
-            self.timer_label.setText("You're good to go!")
-            self.done_button.setEnabled(True)
-        else:
-            self.timer_label.setText(f"Ready in {self.seconds_left} seconds...")
+    def enable_refocus_button(self):
+        self.refocus_button.setEnabled(True)
+        self.label.setText(
+            "Well done! You're ready to continue. 🌟\n\nClick the button below."
+        )

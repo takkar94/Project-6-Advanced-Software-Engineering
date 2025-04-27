@@ -12,11 +12,36 @@ from modules.app_tracker import AppTracker
 from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 
+# --- Manager Conversation Popup ---
+class ManagerConversationPopup(QtWidgets.QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Manager Conversation Check")
+        self.setMinimumSize(300, 150)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        label = QtWidgets.QLabel("Are you currently in conversation with the manager?")
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        label.setWordWrap(True)
+
+        button_layout = QtWidgets.QHBoxLayout()
+        yes_button = QtWidgets.QPushButton("Yes")
+        no_button = QtWidgets.QPushButton("No")
+
+        yes_button.clicked.connect(self.accept)
+        no_button.clicked.connect(self.reject)
+
+        button_layout.addWidget(yes_button)
+        button_layout.addWidget(no_button)
+
+        layout.addWidget(label)
+        layout.addLayout(button_layout)
+
 # --- Idle Timer Widget ---
 class IdleTimerWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.main_window = parent
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setFixedSize(300, 100)
@@ -41,15 +66,22 @@ class IdleTimerWidget(QtWidgets.QWidget):
 
     def update_idle_timer(self):
         idle_time = int(get_idle_time())
+
         if idle_time > 30:
             self.timer_label.setText(f"Idle Time: {idle_time}s")
             self.show_timer()
         else:
             self.hide()
 
-        # Manager detection logic
-        if self.main_window.second_person_behind_detected and idle_time >= 15 and not self.main_window.manager_prompt_shown:
-            self.main_window.ask_is_manager_there()
+        if idle_time >= 60:
+            self.prompt_manager_conversation()
+
+    def prompt_manager_conversation(self):
+        popup = ManagerConversationPopup()
+        if popup.exec() == QtWidgets.QDialog.Accepted:
+            print("User indicated they are talking to the manager.")
+        else:
+            print("User indicated they are NOT talking to the manager.")
 
     def show_timer(self):
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
@@ -60,17 +92,15 @@ class IdleTimerWidget(QtWidgets.QWidget):
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
-        print("🔧 Initializing Main Widget...")
+        print("Initializing Main Widget...")
 
         self.user = user
         self.user_id = user["id"]
-
-        self.second_person_behind_detected = False
-        self.manager_prompt_shown = False
+        self.user_role = user["role"]
 
         self.camera_widget = CameraWidget(self)
-        self.idle_timer_widget = IdleTimerWidget(self)
-        self.battery_label = QtWidgets.QLabel("🔋 Battery: --%", alignment=QtCore.Qt.AlignRight)
+        self.idle_timer_widget = IdleTimerWidget()
+        self.battery_label = QtWidgets.QLabel("Battery: --%", alignment=QtCore.Qt.AlignRight)
 
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
         self.tlx_button.clicked.connect(self.prompt_tlx)
@@ -91,18 +121,18 @@ class MyWidget(QtWidgets.QWidget):
         self.notify_button = QtWidgets.QPushButton("Show Notification")
         self.notify_button.clicked.connect(self.show_notification)
 
-        self.tlx_stats = TLXStatsWidget()
-        self.app_usage_summary = AppUsageSummary()
+        self.tlx_stats = TLXStatsWidget(self.user_id, self.user_role)
+        self.app_usage_summary = AppUsageSummary(self.user_id)
 
         # Layout
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        # Left Layout
+        # Left
         left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(self.camera_widget)
         left_layout.addWidget(self.notify_button)
 
-        # Right Layout
+        # Right
         right_layout = QtWidgets.QVBoxLayout()
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
@@ -118,7 +148,7 @@ class MyWidget(QtWidgets.QWidget):
         main_layout.addLayout(left_layout, stretch=2)
         main_layout.addLayout(right_layout, stretch=1)
 
-        print("✅ Layout initialized.")
+        print("Layout initialized.")
 
         # Battery Timer
         self.battery_timer = QtCore.QTimer(self)
@@ -126,13 +156,13 @@ class MyWidget(QtWidgets.QWidget):
         self.battery_timer.start(3000)
         self.was_plugged_in = True
 
-        # TLX auto timer
+        # TLX Auto Timer
         self.tlx_timer = QtCore.QTimer(self)
         self.tlx_timer.timeout.connect(self.prompt_tlx)
         self.tlx_timer.start(60 * 60 * 1000)
 
         # App Usage Tracker
-        self.app_tracker = AppTracker()
+        self.app_tracker = AppTracker(self.user_id)
         self.app_tracking_timer = QtCore.QTimer(self)
         self.app_tracking_timer.timeout.connect(self.app_tracker.update)
         self.app_tracker.app_switched.connect(self.app_usage_summary.refresh_summary)
@@ -141,95 +171,51 @@ class MyWidget(QtWidgets.QWidget):
     @QtCore.Slot()
     def update_battery_status(self):
         percentage, is_plugged_in = get_battery_status()
-        self.battery_label.setText(f"🔋 Battery: {percentage}%")
+        self.battery_label.setText(f"Battery: {percentage}%")
         if not is_plugged_in and self.was_plugged_in:
-            QtWidgets.QMessageBox.warning(self, "⚠️ Power Alert", "Device is not charging!")
+            QtWidgets.QMessageBox.warning(self, "Power Alert", "Device is not charging!")
         self.was_plugged_in = is_plugged_in
 
     def prompt_tlx(self):
-        print("📋 Prompting TLX form...")
+        print("Prompting TLX form...")
         form = TLXForm()
         if form.exec() == QtWidgets.QDialog.Accepted:
             result = form.get_results()
-            print("🧪 TLX Form Results:", result)
+            print("TLX Form Results:", result)
 
-            # Trigger Frustration Distraction Dialog if needed
             if result.get("Frustration", 0) >= 70 or result.get("frustration", 0) >= 70:
                 dialog = FrustrationDistractionDialog()
                 dialog.exec()
 
+            from modules.database.db import save_tlx_result_to_db
             save_tlx_result_to_db(result, self.user_id)
+
             self.tlx_stats.refresh_stats()
 
     def show_notification(self):
-        print("📢 Show notification clicked.")
-        # subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])  # Optional notification
-
-    def ask_is_manager_there(self):
-        msg_box = QtWidgets.QMessageBox(self)
-        msg_box.setWindowTitle("Supervisor Check")
-        msg_box.setText("👨‍💼 Is the manager there?")
-        msg_box.setIcon(QtWidgets.QMessageBox.Question)
-        msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        response = msg_box.exec()
-
-        if response == QtWidgets.QMessageBox.Yes:
-            print("✅ Manager confirmed present.")
-        else:
-            print("❌ Manager not present.")
-
-        self.manager_prompt_shown = True
-        self.second_person_behind_detected = False
-
-# --- Helper Function to Save TLX to DB ---
-def save_tlx_result_to_db(result: dict, user_id: int):
-    try:
-        import sqlite3
-        db_path = get_db_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        mental = result.get("Mental") or result.get("mental", 0)
-        physical = result.get("Physical") or result.get("physical", 0)
-        temporal = result.get("Temporal") or result.get("temporal", 0)
-        performance = result.get("Performance") or result.get("performance", 0)
-        effort = result.get("Effort") or result.get("effort", 0)
-        frustration = result.get("Frustration") or result.get("frustration", 0)
-
-        cursor.execute('''
-            INSERT INTO tlx_entries (user_id, mental, physical, temporal, performance, effort, frustration)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            user_id, mental, physical, temporal, performance, effort, frustration
-        ))
-
-        conn.commit()
-        conn.close()
-        print("✅ TLX result successfully saved to database.")
-    except Exception as e:
-        print(f"❌ Failed to save TLX result to database: {e}")
+        QtWidgets.QMessageBox.information(self, "Notification", "Test Notification Triggered.")
 
 # --- Entry Point ---
 if __name__ == "__main__":
     try:
-        print("🚀 Starting application...")
+        print("Starting application...")
         init_db()
-        print("📦 Database initialized.")
+        print("Database initialized.")
 
         app = QtWidgets.QApplication([])
 
         login = LoginDialog()
-        print("🔑 Launching login dialog...")
+        print("Launching login dialog...")
         if login.exec() == QtWidgets.QDialog.Accepted:
             user = login.get_user_info()
-            print(f"✅ Logged in as {user['name']} ({user['role']})")
+            print(f"Logged in as {user['name']} ({user['role']})")
 
             widget = MyWidget(user)
             widget.resize(1280, 720)
             widget.show()
             sys.exit(app.exec())
         else:
-            print("❌ Login cancelled.")
+            print("Login cancelled.")
             sys.exit()
     except Exception as e:
-        print(f"🔥 Crash occurred: {e}")
+        print(f"Crash occurred: {e}")

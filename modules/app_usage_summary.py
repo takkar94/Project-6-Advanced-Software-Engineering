@@ -1,12 +1,12 @@
 from PySide6 import QtWidgets
-import csv
-import os
+import sqlite3
 from collections import defaultdict
+from modules.database.db import get_db_path
 
 class AppUsageSummary(QtWidgets.QWidget):
-    def __init__(self, log_file="app_usage_log.csv"):
-        super().__init__()
-        self.log_file = log_file
+    def __init__(self, user_id, parent=None):
+        super().__init__(parent)
+        self.user_id = user_id
         self.setMinimumHeight(200)
         self.setStyleSheet("font-size: 14px; padding: 10px;")
 
@@ -17,21 +17,31 @@ class AppUsageSummary(QtWidgets.QWidget):
         self.refresh_summary()
 
     def refresh_summary(self):
-        if not os.path.exists(self.log_file):
-            self.label.setText("📋 No app usage data found.")
-            return
-
         usage_data = defaultdict(int)
 
-        with open(self.log_file, newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                app = row["App"]
-                try:
-                    duration = int(row["Duration (s)"])
-                    usage_data[app] += duration
-                except:
-                    continue
+        try:
+            db_path = get_db_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT app, SUM(duration)
+                FROM app_usage
+                WHERE user_id = ?
+                GROUP BY app
+                ORDER BY SUM(duration) DESC
+            ''', (self.user_id,))
+            rows = cursor.fetchall()
+
+            for app, total_duration in rows:
+                usage_data[app] += total_duration
+
+            conn.close()
+
+        except Exception as e:
+            print(f"❌ Failed to load app usage summary: {e}")
+            self.label.setText("❌ Failed to load app usage summary.")
+            return
 
         if not usage_data:
             self.label.setText("📋 No usage recorded.")
@@ -39,7 +49,7 @@ class AppUsageSummary(QtWidgets.QWidget):
 
         summary_lines = [
             f"{app} — {round(seconds / 60, 1)} min"
-            for app, seconds in sorted(usage_data.items(), key=lambda x: -x[1])
+            for app, seconds in usage_data.items()
         ]
 
         self.label.setText("📋 App Usage Summary:\n" + "\n".join(summary_lines))
