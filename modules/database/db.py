@@ -65,9 +65,22 @@ def init_db():
         )
     """)
 
+    # --- Tasks table ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            title TEXT NOT NULL,
+            description TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
+# --- Save TLX result ---
 def save_tlx_result_to_db(result: dict, user_id: int):
     try:
         db_path = get_db_path()
@@ -89,10 +102,10 @@ def save_tlx_result_to_db(result: dict, user_id: int):
 
         conn.commit()
         conn.close()
-        print("TLX result saved to database.")
     except Exception as e:
-        print(f"Failed to save TLX result to database: {e}")
+        print(f"Failed to save TLX result: {e}")
 
+# --- Save usability feedback ---
 def save_usability_feedback(user_id: int, score: int):
     try:
         db_path = get_db_path()
@@ -106,6 +119,63 @@ def save_usability_feedback(user_id: int, score: int):
 
         conn.commit()
         conn.close()
-        print(f"Usability feedback saved: {score}/10")
     except Exception as e:
         print(f"Failed to save usability feedback: {e}")
+
+# --- Save Task Completion ---
+def save_task(user_id: int, title: str, description: str):
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO tasks (user_id, title, description)
+            VALUES (?, ?, ?)
+        ''', (user_id, title, description))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Failed to save task: {e}")
+
+# --- Fetch Task Summary for Admin ---
+def fetch_tasks_summary():
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT u.id, u.name, COUNT(t.id) as task_count
+            FROM users u
+            LEFT JOIN tasks t ON u.id = t.user_id
+            GROUP BY u.id, u.name
+        ''')
+
+        results = cursor.fetchall()
+        conn.close()
+        return results
+    except Exception as e:
+        print(f"Failed to fetch task summary: {e}")
+        return []
+
+# --- Fetch Task Details for Specific Employee ---
+def fetch_tasks_by_user(user_id):
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT title, description, timestamp
+            FROM tasks
+            WHERE user_id = ?
+        ''', (user_id,))
+
+        results = cursor.fetchall()
+        conn.close()
+        return results
+    except Exception as e:
+        print(f"Failed to fetch tasks for user: {e}")
+        return []
