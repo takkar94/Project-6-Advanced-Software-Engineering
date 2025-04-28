@@ -89,6 +89,44 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
+class TaskSummaryViewer(QtWidgets.QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Task Summary")
+        self.setMinimumSize(400, 300)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        self.list_widget = QtWidgets.QListWidget()
+        layout.addWidget(self.list_widget)
+
+        summary = fetch_tasks_summary()
+        for user_id, name, task_count in summary:
+            self.list_widget.addItem(f"{name} — {task_count} tasks")
+
+        self.list_widget.itemClicked.connect(self.show_user_tasks)
+
+    def show_user_tasks(self, item):
+        user_name = item.text().split(' — ')[0]
+        user_id = self.find_user_id(user_name)
+
+        tasks = fetch_tasks_by_user(user_id)
+
+        if not tasks:
+            QtWidgets.QMessageBox.information(self, "Tasks", f"No tasks found for {user_name}.")
+            return
+
+        task_details = "\n\n".join([
+            f"Title: {t[0]}\nDescription: {t[1]}\nTime: {t[2]}" for t in tasks
+        ])
+        QtWidgets.QMessageBox.information(self, f"Tasks of {user_name}", task_details)
+
+    def find_user_id(self, user_name):
+        all_summary = fetch_tasks_summary()
+        for user_id, name, _ in all_summary:
+            if name == user_name:
+                return user_id
+        return None
+
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
@@ -216,7 +254,6 @@ class MyWidget(QtWidgets.QWidget):
                 self.prompt_tlx()
 
     def open_task_summary(self):
-        from modules.task_summary import TaskSummaryViewer
         dialog = TaskSummaryViewer()
         dialog.exec()
 
