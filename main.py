@@ -1,7 +1,6 @@
-# Employee Task and Workload Management Application
-
 import sys
 import os
+import subprocess
 from PySide6 import QtCore, QtWidgets
 from modules.login import LoginDialog
 from modules.database.db import (
@@ -20,6 +19,7 @@ from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 from modules.system_usability_skill import SystemUsabilityDialog
 
+# --- IdleTimerWidget ---
 class IdleTimerWidget(QtWidgets.QWidget):
     def __init__(self, user_id):
         super().__init__()
@@ -48,7 +48,6 @@ class IdleTimerWidget(QtWidgets.QWidget):
 
     def update_idle_timer(self):
         idle_time = int(get_idle_time())
-
         if idle_time > 30:
             self.timer_label.setText(f"Idle Time: {idle_time}s")
             self.show_timer()
@@ -89,6 +88,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
+# --- TaskSummaryViewer ---
 class TaskSummaryViewer(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -110,7 +110,6 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         user_id = self.find_user_id(user_name)
 
         tasks = fetch_tasks_by_user(user_id)
-
         if not tasks:
             QtWidgets.QMessageBox.information(self, "Tasks", f"No tasks found for {user_name}.")
             return
@@ -127,6 +126,7 @@ class TaskSummaryViewer(QtWidgets.QDialog):
                 return user_id
         return None
 
+# --- MyWidget (Main Window) ---
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
@@ -138,7 +138,6 @@ class MyWidget(QtWidgets.QWidget):
 
         self.camera_widget = CameraWidget(self)
         self.battery_label = QtWidgets.QLabel("Battery: --%", alignment=QtCore.Qt.AlignRight)
-
         self.idle_timer_widget = IdleTimerWidget(self.user_id)
 
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
@@ -154,25 +153,11 @@ class MyWidget(QtWidgets.QWidget):
         self.tlx_stats = TLXStatsWidget(self.user_id, self.user_role)
         self.app_usage_summary = AppUsageSummary(self.user_id)
 
+        # Layout
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        self.camera_group = QtWidgets.QGroupBox("Camera Feed")
-        camera_layout = QtWidgets.QVBoxLayout()
-        camera_layout.addWidget(self.camera_widget)
-        self.camera_group.setLayout(camera_layout)
-
-        self.app_usage_group = QtWidgets.QGroupBox("Application Usage Summary")
-        app_usage_layout = QtWidgets.QVBoxLayout()
-        app_usage_layout.addWidget(self.app_usage_summary)
-        self.app_usage_group.setLayout(app_usage_layout)
-
-        self.tlx_stats_group = QtWidgets.QGroupBox("NASA TLX Statistics")
-        tlx_layout = QtWidgets.QVBoxLayout()
-        tlx_layout.addWidget(self.tlx_stats)
-        self.tlx_stats_group.setLayout(tlx_layout)
-
         left_layout = QtWidgets.QVBoxLayout()
-        left_layout.addWidget(self.camera_group)
+        left_layout.addWidget(self.camera_group_box())
         left_layout.addWidget(self.notify_button)
 
         if self.user_role == "employee":
@@ -193,8 +178,8 @@ class MyWidget(QtWidgets.QWidget):
 
         right_layout.addLayout(battery_layout)
         right_layout.addWidget(self.tlx_button)
-        right_layout.addWidget(self.tlx_stats_group)
-        right_layout.addWidget(self.app_usage_group)
+        right_layout.addWidget(self.tlx_stats)
+        right_layout.addWidget(self.app_usage_summary)
         right_layout.addStretch()
 
         main_layout.addLayout(left_layout, stretch=2)
@@ -214,6 +199,13 @@ class MyWidget(QtWidgets.QWidget):
         self.app_tracking_timer.timeout.connect(self.app_tracker.update)
         self.app_tracker.app_switched.connect(self.app_usage_summary.refresh_summary)
         self.app_tracking_timer.start(2000)
+
+    def camera_group_box(self):
+        group = QtWidgets.QGroupBox("Camera Feed")
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(self.camera_widget)
+        group.setLayout(layout)
+        return group
 
     @QtCore.Slot()
     def update_battery_status(self):
@@ -241,7 +233,10 @@ class MyWidget(QtWidgets.QWidget):
                 save_usability_feedback(self.user_id, usability_score)
 
     def show_notification(self):
-        QtWidgets.QMessageBox.information(self, "Notification", "Test Notification Triggered.")
+        try:
+            subprocess.Popen([sys.executable, "tempCodeRunnerFile.py"])
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Notification Error", f"Failed to launch notification: {e}")
 
     def open_task_completion(self):
         from modules.task_completion import TaskCompletionDialog
@@ -272,9 +267,7 @@ class MyWidget(QtWidgets.QWidget):
 if __name__ == "__main__":
     try:
         init_db()
-
         app = QtWidgets.QApplication([])
-
         style_path = os.path.join(os.path.dirname(__file__), "assets", "css", "style.qss")
         if os.path.exists(style_path):
             with open(style_path, "r") as f:

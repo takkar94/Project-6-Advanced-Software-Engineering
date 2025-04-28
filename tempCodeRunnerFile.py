@@ -80,21 +80,21 @@ class ToastNotification:
         if not self.acknowledged:
             self.acknowledged = True
             if self.callback:
-                self.callback()
+                self.callback(was_closed=False, timed_out=False)
             self.fade_out()
     
     def on_close(self, event=None):
         if not self.acknowledged:
             self.acknowledged = True
             if self.callback:
-                self.callback(was_closed=True)
+                self.callback(was_closed=True, timed_out=False)
             self.fade_out()
     
     def auto_close(self):
         if not self.acknowledged:
             self.acknowledged = True
             if self.callback:
-                self.callback(timed_out=True)
+                self.callback(was_closed=False, timed_out=True)
             self.fade_out()
 
 class NotificationApp:
@@ -149,6 +149,7 @@ class NotificationApp:
     
     def notification_callback(self, was_closed=False, timed_out=False):
         # Calculate reaction time
+        
         end_time = time.time()
         reaction_time = end_time - self.start_time
         
