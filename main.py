@@ -3,6 +3,8 @@
 import sys
 import os
 from PySide6 import QtCore, QtWidgets
+
+# Import custom modules we built
 from modules.login import LoginDialog
 from modules.database.db import (
     init_db, get_db_path, save_tlx_result_to_db,
@@ -18,18 +20,20 @@ from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 from modules.system_usability_skill import SystemUsabilityDialog
 
-# Popup for manager conversation detection
+# Popup that asks if the user is talking to the manager after idle
 class ManagerConversationPopup(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Manager Conversation Check")
         self.setMinimumSize(300, 150)
 
+        # Layout setup
         layout = QtWidgets.QVBoxLayout(self)
         label = QtWidgets.QLabel("Are you currently in conversation with the manager?")
         label.setAlignment(QtCore.Qt.AlignCenter)
         label.setWordWrap(True)
 
+        # Buttons for user to answer
         button_layout = QtWidgets.QHBoxLayout()
         yes_button = QtWidgets.QPushButton("Yes")
         no_button = QtWidgets.QPushButton("No")
@@ -43,7 +47,7 @@ class ManagerConversationPopup(QtWidgets.QDialog):
         layout.addWidget(label)
         layout.addLayout(button_layout)
 
-# Dialog for marking task completion
+# Dialog that appears when employee completes a task
 class TaskCompletionDialog(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -52,6 +56,7 @@ class TaskCompletionDialog(QtWidgets.QDialog):
 
         layout = QtWidgets.QFormLayout(self)
 
+        # Two inputs: title and description
         self.title_input = QtWidgets.QLineEdit()
         self.desc_input = QtWidgets.QLineEdit()
 
@@ -64,9 +69,10 @@ class TaskCompletionDialog(QtWidgets.QDialog):
         layout.addWidget(submit_button)
 
     def get_task_data(self):
+        # Return entered title and description
         return self.title_input.text(), self.desc_input.text()
 
-# Admin manager can view all tasks summary
+# Dialog that lets manager view all employees' task summaries
 class TaskSummaryViewer(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -77,6 +83,7 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         self.list_widget = QtWidgets.QListWidget()
         layout.addWidget(self.list_widget)
 
+        # Fetch tasks and display employee names and task counts
         summary = fetch_tasks_summary()
         for user_id, name, task_count in summary:
             self.list_widget.addItem(f"{name} — {task_count} tasks")
@@ -84,6 +91,7 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         self.list_widget.itemClicked.connect(self.show_user_tasks)
 
     def show_user_tasks(self, item):
+        # When an employee name is clicked, show their tasks
         user_name = item.text().split(' — ')[0]
         user_id = self.find_user_id(user_name)
 
@@ -99,13 +107,14 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         QtWidgets.QMessageBox.information(self, f"Tasks of {user_name}", task_details)
 
     def find_user_id(self, user_name):
+        # Helper function to find user ID from name
         all_summary = fetch_tasks_summary()
         for user_id, name, _ in all_summary:
             if name == user_name:
                 return user_id
         return None
 
-# Idle Timer to detect inactivity
+# Widget that monitors if the user is idle
 class IdleTimerWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,6 +132,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
             padding: 15px;
             border-radius: 15px;
         """)
+
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.timer_label)
 
@@ -132,6 +142,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.hide()
 
     def update_idle_timer(self):
+        # Update every second
         idle_time = int(get_idle_time())
 
         if idle_time > 30:
@@ -152,7 +163,7 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
-# Main application window
+# --- Main application window ---
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
@@ -160,7 +171,7 @@ class MyWidget(QtWidgets.QWidget):
         self.user_id = user["id"]
         self.user_role = user["role"]
 
-        # Setup all widgets
+        # Initialize the main components
         self.camera_widget = CameraWidget(self)
         self.idle_timer_widget = IdleTimerWidget()
         self.battery_label = QtWidgets.QLabel("Battery: --%", alignment=QtCore.Qt.AlignRight)
@@ -178,18 +189,16 @@ class MyWidget(QtWidgets.QWidget):
         self.tlx_stats = TLXStatsWidget(self.user_id, self.user_role)
         self.app_usage_summary = AppUsageSummary(self.user_id)
 
-        # Layouts
         main_layout = QtWidgets.QHBoxLayout(self)
         self.setup_layouts(main_layout)
 
-        # Timers
         self.setup_timers()
 
     def setup_layouts(self, main_layout):
+        # Organize layouts for camera, stats, usage
         left_layout = QtWidgets.QVBoxLayout()
         right_layout = QtWidgets.QVBoxLayout()
 
-        # Camera
         self.camera_group = QtWidgets.QGroupBox("Camera Feed")
         camera_layout = QtWidgets.QVBoxLayout()
         camera_layout.addWidget(self.camera_widget)
@@ -197,7 +206,6 @@ class MyWidget(QtWidgets.QWidget):
         left_layout.addWidget(self.camera_group)
         left_layout.addWidget(self.notify_button)
 
-        # Task button / summary button depending on role
         if self.user_role == "employee":
             self.task_button = QtWidgets.QPushButton("Mark Task Complete")
             self.task_button.clicked.connect(self.open_task_completion)
@@ -209,7 +217,6 @@ class MyWidget(QtWidgets.QWidget):
 
         left_layout.addWidget(self.logout_button)
 
-        # Battery and stats
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
         battery_layout.addWidget(self.battery_label)
@@ -234,15 +241,18 @@ class MyWidget(QtWidgets.QWidget):
         main_layout.addLayout(right_layout, stretch=1)
 
     def setup_timers(self):
+        # Timer for battery updates
         self.battery_timer = QtCore.QTimer(self)
         self.battery_timer.timeout.connect(self.update_battery_status)
         self.battery_timer.start(3000)
         self.was_plugged_in = True
 
+        # Timer for auto launching TLX form every hour
         self.tlx_timer = QtCore.QTimer(self)
         self.tlx_timer.timeout.connect(self.prompt_tlx)
         self.tlx_timer.start(60 * 60 * 1000)
 
+        # Timer for app usage tracking
         self.app_tracker = AppTracker(self.user_id)
         self.app_tracking_timer = QtCore.QTimer(self)
         self.app_tracking_timer.timeout.connect(self.app_tracker.update)
@@ -269,6 +279,7 @@ class MyWidget(QtWidgets.QWidget):
             save_tlx_result_to_db(result, self.user_id)
             self.tlx_stats.refresh_stats()
 
+            # Launch System Usability Feedback immediately after
             usability_dialog = SystemUsabilityDialog()
             if usability_dialog.exec() == QtWidgets.QDialog.Accepted:
                 usability_score = usability_dialog.get_score()
