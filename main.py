@@ -20,97 +20,10 @@ from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 from modules.system_usability_skill import SystemUsabilityDialog
 
-# Popup for checking manager conversation
-class ManagerConversationPopup(QtWidgets.QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Manager Conversation Check")
-        self.setMinimumSize(300, 150)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        label = QtWidgets.QLabel("Are you currently in conversation with the manager?")
-        label.setAlignment(QtCore.Qt.AlignCenter)
-        label.setWordWrap(True)
-
-        button_layout = QtWidgets.QHBoxLayout()
-        yes_button = QtWidgets.QPushButton("Yes")
-        no_button = QtWidgets.QPushButton("No")
-
-        yes_button.clicked.connect(self.accept)
-        no_button.clicked.connect(self.reject)
-
-        button_layout.addWidget(yes_button)
-        button_layout.addWidget(no_button)
-
-        layout.addWidget(label)
-        layout.addLayout(button_layout)
-
-# Dialog for task completion
-class TaskCompletionDialog(QtWidgets.QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Task Completion")
-        self.setMinimumSize(300, 200)
-
-        layout = QtWidgets.QFormLayout(self)
-
-        self.title_input = QtWidgets.QLineEdit()
-        self.desc_input = QtWidgets.QLineEdit()
-
-        layout.addRow("Task Title:", self.title_input)
-        layout.addRow("Description:", self.desc_input)
-
-        submit_button = QtWidgets.QPushButton("Submit")
-        submit_button.clicked.connect(self.accept)
-
-        layout.addWidget(submit_button)
-
-    def get_task_data(self):
-        return self.title_input.text(), self.desc_input.text()
-
-# Dialog for viewing all employee tasks (for manager)
-class TaskSummaryViewer(QtWidgets.QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Task Summary")
-        self.setMinimumSize(400, 300)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        self.list_widget = QtWidgets.QListWidget()
-        layout.addWidget(self.list_widget)
-
-        summary = fetch_tasks_summary()
-        for user_id, name, task_count in summary:
-            self.list_widget.addItem(f"{name} — {task_count} tasks")
-
-        self.list_widget.itemClicked.connect(self.show_user_tasks)
-
-    def show_user_tasks(self, item):
-        user_name = item.text().split(' — ')[0]
-        user_id = self.find_user_id(user_name)
-
-        tasks = fetch_tasks_by_user(user_id)
-
-        if not tasks:
-            QtWidgets.QMessageBox.information(self, "Tasks", f"No tasks found for {user_name}.")
-            return
-
-        task_details = "\n\n".join([
-            f"Title: {t[0]}\nDescription: {t[1]}\nTime: {t[2]}" for t in tasks
-        ])
-        QtWidgets.QMessageBox.information(self, f"Tasks of {user_name}", task_details)
-
-    def find_user_id(self, user_name):
-        all_summary = fetch_tasks_summary()
-        for user_id, name, _ in all_summary:
-            if name == user_name:
-                return user_id
-        return None
-
-# Widget for tracking idle time
 class IdleTimerWidget(QtWidgets.QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, user_id):
+        super().__init__()
+        self.user_id = user_id
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setFixedSize(300, 100)
@@ -146,17 +59,36 @@ class IdleTimerWidget(QtWidgets.QWidget):
             self.prompt_manager_conversation()
 
     def prompt_manager_conversation(self):
-        popup = ManagerConversationPopup()
+        popup = QtWidgets.QDialog()
+        popup.setWindowTitle("Manager Conversation Check")
+        popup.setMinimumSize(300, 150)
+
+        layout = QtWidgets.QVBoxLayout(popup)
+        label = QtWidgets.QLabel("Are you currently in conversation with the manager?")
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        label.setWordWrap(True)
+
+        button_layout = QtWidgets.QHBoxLayout()
+        yes_button = QtWidgets.QPushButton("Yes")
+        no_button = QtWidgets.QPushButton("No")
+
+        yes_button.clicked.connect(popup.accept)
+        no_button.clicked.connect(popup.reject)
+
+        button_layout.addWidget(yes_button)
+        button_layout.addWidget(no_button)
+
+        layout.addWidget(label)
+        layout.addLayout(button_layout)
+
         if popup.exec() == QtWidgets.QDialog.Accepted:
-            # Save Manager Interruption
-            save_manager_interruption(self.parent().user_id)
+            save_manager_interruption(self.user_id)
 
     def show_timer(self):
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
-# Main Widget for the app
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
@@ -167,8 +99,9 @@ class MyWidget(QtWidgets.QWidget):
         self.user_role = user["role"]
 
         self.camera_widget = CameraWidget(self)
-        self.idle_timer_widget = IdleTimerWidget(self)
         self.battery_label = QtWidgets.QLabel("Battery: --%", alignment=QtCore.Qt.AlignRight)
+
+        self.idle_timer_widget = IdleTimerWidget(self.user_id)
 
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
         self.tlx_button.clicked.connect(self.prompt_tlx)
@@ -273,6 +206,7 @@ class MyWidget(QtWidgets.QWidget):
         QtWidgets.QMessageBox.information(self, "Notification", "Test Notification Triggered.")
 
     def open_task_completion(self):
+        from modules.task_completion import TaskCompletionDialog
         dialog = TaskCompletionDialog()
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             title, desc = dialog.get_task_data()
@@ -282,6 +216,7 @@ class MyWidget(QtWidgets.QWidget):
                 self.prompt_tlx()
 
     def open_task_summary(self):
+        from modules.task_summary import TaskSummaryViewer
         dialog = TaskSummaryViewer()
         dialog.exec()
 
