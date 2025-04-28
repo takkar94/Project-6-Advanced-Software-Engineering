@@ -3,12 +3,12 @@
 import sys
 import os
 from PySide6 import QtCore, QtWidgets
-
-# Import custom modules we built
 from modules.login import LoginDialog
 from modules.database.db import (
     init_db, get_db_path, save_tlx_result_to_db,
-    save_usability_feedback, save_task, fetch_tasks_summary, fetch_tasks_by_user
+    save_usability_feedback, save_task,
+    fetch_tasks_summary, fetch_tasks_by_user,
+    save_manager_interruption
 )
 from modules.systemalerts import get_battery_status
 from modules.idle_tracker import get_idle_time
@@ -20,20 +20,18 @@ from modules.app_usage_summary import AppUsageSummary
 from modules.frustration_skill import FrustrationDistractionDialog
 from modules.system_usability_skill import SystemUsabilityDialog
 
-# Popup that asks if the user is talking to the manager after idle
+# Popup for checking manager conversation
 class ManagerConversationPopup(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Manager Conversation Check")
         self.setMinimumSize(300, 150)
 
-        # Layout setup
         layout = QtWidgets.QVBoxLayout(self)
         label = QtWidgets.QLabel("Are you currently in conversation with the manager?")
         label.setAlignment(QtCore.Qt.AlignCenter)
         label.setWordWrap(True)
 
-        # Buttons for user to answer
         button_layout = QtWidgets.QHBoxLayout()
         yes_button = QtWidgets.QPushButton("Yes")
         no_button = QtWidgets.QPushButton("No")
@@ -47,7 +45,7 @@ class ManagerConversationPopup(QtWidgets.QDialog):
         layout.addWidget(label)
         layout.addLayout(button_layout)
 
-# Dialog that appears when employee completes a task
+# Dialog for task completion
 class TaskCompletionDialog(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -56,7 +54,6 @@ class TaskCompletionDialog(QtWidgets.QDialog):
 
         layout = QtWidgets.QFormLayout(self)
 
-        # Two inputs: title and description
         self.title_input = QtWidgets.QLineEdit()
         self.desc_input = QtWidgets.QLineEdit()
 
@@ -69,10 +66,9 @@ class TaskCompletionDialog(QtWidgets.QDialog):
         layout.addWidget(submit_button)
 
     def get_task_data(self):
-        # Return entered title and description
         return self.title_input.text(), self.desc_input.text()
 
-# Dialog that lets manager view all employees' task summaries
+# Dialog for viewing all employee tasks (for manager)
 class TaskSummaryViewer(QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
@@ -83,7 +79,6 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         self.list_widget = QtWidgets.QListWidget()
         layout.addWidget(self.list_widget)
 
-        # Fetch tasks and display employee names and task counts
         summary = fetch_tasks_summary()
         for user_id, name, task_count in summary:
             self.list_widget.addItem(f"{name} — {task_count} tasks")
@@ -91,7 +86,6 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         self.list_widget.itemClicked.connect(self.show_user_tasks)
 
     def show_user_tasks(self, item):
-        # When an employee name is clicked, show their tasks
         user_name = item.text().split(' — ')[0]
         user_id = self.find_user_id(user_name)
 
@@ -107,14 +101,13 @@ class TaskSummaryViewer(QtWidgets.QDialog):
         QtWidgets.QMessageBox.information(self, f"Tasks of {user_name}", task_details)
 
     def find_user_id(self, user_name):
-        # Helper function to find user ID from name
         all_summary = fetch_tasks_summary()
         for user_id, name, _ in all_summary:
             if name == user_name:
                 return user_id
         return None
 
-# Widget that monitors if the user is idle
+# Widget for tracking idle time
 class IdleTimerWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -132,7 +125,6 @@ class IdleTimerWidget(QtWidgets.QWidget):
             padding: 15px;
             border-radius: 15px;
         """)
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.timer_label)
 
@@ -142,7 +134,6 @@ class IdleTimerWidget(QtWidgets.QWidget):
         self.hide()
 
     def update_idle_timer(self):
-        # Update every second
         idle_time = int(get_idle_time())
 
         if idle_time > 30:
@@ -156,24 +147,27 @@ class IdleTimerWidget(QtWidgets.QWidget):
 
     def prompt_manager_conversation(self):
         popup = ManagerConversationPopup()
-        popup.exec()
+        if popup.exec() == QtWidgets.QDialog.Accepted:
+            # Save Manager Interruption
+            save_manager_interruption(self.parent().user_id)
 
     def show_timer(self):
         screen_geometry = QtWidgets.QApplication.primaryScreen().availableGeometry()
         self.move(screen_geometry.width() - 320, 50)
         self.show()
 
-# --- Main application window ---
+# Main Widget for the app
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, user):
         super().__init__()
+        print("Initializing Main Widget...")
+
         self.user = user
         self.user_id = user["id"]
         self.user_role = user["role"]
 
-        # Initialize the main components
         self.camera_widget = CameraWidget(self)
-        self.idle_timer_widget = IdleTimerWidget()
+        self.idle_timer_widget = IdleTimerWidget(self)
         self.battery_label = QtWidgets.QLabel("Battery: --%", alignment=QtCore.Qt.AlignRight)
 
         self.tlx_button = QtWidgets.QPushButton("Launch NASA TLX")
@@ -190,19 +184,23 @@ class MyWidget(QtWidgets.QWidget):
         self.app_usage_summary = AppUsageSummary(self.user_id)
 
         main_layout = QtWidgets.QHBoxLayout(self)
-        self.setup_layouts(main_layout)
-
-        self.setup_timers()
-
-    def setup_layouts(self, main_layout):
-        # Organize layouts for camera, stats, usage
-        left_layout = QtWidgets.QVBoxLayout()
-        right_layout = QtWidgets.QVBoxLayout()
 
         self.camera_group = QtWidgets.QGroupBox("Camera Feed")
         camera_layout = QtWidgets.QVBoxLayout()
         camera_layout.addWidget(self.camera_widget)
         self.camera_group.setLayout(camera_layout)
+
+        self.app_usage_group = QtWidgets.QGroupBox("Application Usage Summary")
+        app_usage_layout = QtWidgets.QVBoxLayout()
+        app_usage_layout.addWidget(self.app_usage_summary)
+        self.app_usage_group.setLayout(app_usage_layout)
+
+        self.tlx_stats_group = QtWidgets.QGroupBox("NASA TLX Statistics")
+        tlx_layout = QtWidgets.QVBoxLayout()
+        tlx_layout.addWidget(self.tlx_stats)
+        self.tlx_stats_group.setLayout(tlx_layout)
+
+        left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(self.camera_group)
         left_layout.addWidget(self.notify_button)
 
@@ -217,19 +215,10 @@ class MyWidget(QtWidgets.QWidget):
 
         left_layout.addWidget(self.logout_button)
 
+        right_layout = QtWidgets.QVBoxLayout()
         battery_layout = QtWidgets.QHBoxLayout()
         battery_layout.addStretch()
         battery_layout.addWidget(self.battery_label)
-
-        self.tlx_stats_group = QtWidgets.QGroupBox("NASA TLX Statistics")
-        tlx_layout = QtWidgets.QVBoxLayout()
-        tlx_layout.addWidget(self.tlx_stats)
-        self.tlx_stats_group.setLayout(tlx_layout)
-
-        self.app_usage_group = QtWidgets.QGroupBox("Application Usage Summary")
-        app_usage_layout = QtWidgets.QVBoxLayout()
-        app_usage_layout.addWidget(self.app_usage_summary)
-        self.app_usage_group.setLayout(app_usage_layout)
 
         right_layout.addLayout(battery_layout)
         right_layout.addWidget(self.tlx_button)
@@ -240,19 +229,15 @@ class MyWidget(QtWidgets.QWidget):
         main_layout.addLayout(left_layout, stretch=2)
         main_layout.addLayout(right_layout, stretch=1)
 
-    def setup_timers(self):
-        # Timer for battery updates
         self.battery_timer = QtCore.QTimer(self)
         self.battery_timer.timeout.connect(self.update_battery_status)
         self.battery_timer.start(3000)
         self.was_plugged_in = True
 
-        # Timer for auto launching TLX form every hour
         self.tlx_timer = QtCore.QTimer(self)
         self.tlx_timer.timeout.connect(self.prompt_tlx)
         self.tlx_timer.start(60 * 60 * 1000)
 
-        # Timer for app usage tracking
         self.app_tracker = AppTracker(self.user_id)
         self.app_tracking_timer = QtCore.QTimer(self)
         self.app_tracking_timer.timeout.connect(self.app_tracker.update)
@@ -279,7 +264,6 @@ class MyWidget(QtWidgets.QWidget):
             save_tlx_result_to_db(result, self.user_id)
             self.tlx_stats.refresh_stats()
 
-            # Launch System Usability Feedback immediately after
             usability_dialog = SystemUsabilityDialog()
             if usability_dialog.exec() == QtWidgets.QDialog.Accepted:
                 usability_score = usability_dialog.get_score()
